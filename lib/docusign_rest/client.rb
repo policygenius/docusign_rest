@@ -426,6 +426,22 @@ module DocusignRest
       tab_array
     end
 
+    # Allows adding extra attributes to the file array
+    def create_file_ios_with_params(files)
+      ios = []
+      files.each_with_index do |file, index|
+        ios << {
+          io: UploadIO.new(
+            file[:io] || file[:path],
+            file[:content_type] || 'application/pdf',
+            file[:name],
+            'Content-Disposition' => "file; documentid=#{index + 1}"
+          ),
+          transform_pdf_fields: file[:transform_pdf_fields] || false
+        }
+      end
+      ios
+    end
 
     # Internal: sets up the file ios array
     #
@@ -496,6 +512,21 @@ module DocusignRest
         {
           documentId: "#{index + 1}",
           name: io.original_filename
+        }
+      end
+    end
+
+
+    # Internal: the same as above, but allows the transformPdfFields option
+    # documentId
+    #
+    # Returns a hash of documents that are to be uploaded
+    def get_documents_with_params(ios)
+      ios.each_with_index.map do |io, index|
+        {
+          documentId: "#{index + 1}",
+          name: io[:io].original_filename,
+          transformPdfFields: io[:transform_pdf_fields]
         }
       end
     end
@@ -599,13 +630,13 @@ module DocusignRest
     #   statusDateTime - The date/time the envelope was created
     #   uri            - The relative envelope uri
     def create_envelope_from_document(options={})
-      ios = create_file_ios(options[:files])
-      file_params = create_file_params(ios)
+      ios = create_file_ios_with_params(options[:files])
+      file_params = create_file_params(ios.map { |io| io[:io] })
 
       post_body = {
         emailBlurb:   "#{options[:email][:body] if options[:email]}",
         emailSubject: "#{options[:email][:subject] if options[:email]}",
-        documents: get_documents(ios),
+        documents: get_documents_with_params(ios),
         recipients: {
           signers: get_signers(options[:signers])
         },
